@@ -3,11 +3,12 @@ import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.models.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import jwt from "jsonwebtoken"
 
 
 const generateAccessAndRefreshToken = async(userId) => {
     try{
-        const userExists = User.findById(userId)
+        const userExists = await User.findById(userId)
 
         const accessToken = userExists.generateAccessToken()
         const refreshToken = userExists.generateRefreshToken()  // methods need to be called with parantheses at end
@@ -20,7 +21,7 @@ const generateAccessAndRefreshToken = async(userId) => {
         return { accessToken, refreshToken}
 
     } catch(err){
-        throw new ApiError(500, "Something went wrong while generating Access and Refresh token")
+        throw new ApiError(500, `Something went wrong while generating Access and Refresh token, ${err}`)
     }
 }
 
@@ -106,10 +107,17 @@ const loginUser = asyncHandler(async( req, res) => {
     // send cookies 
 
     const { username, email, password} = req.body
+    console.log(email)
 
-    if(!username || !email){
+    if(!username && !email){
         throw new ApiError(400, "Username or Email is required")
     }
+
+    // Here is an alternative of above code based on logic discussed in video:
+    // if (!(username || email)) {
+    //     throw new ApiError(400, "username or email is required")
+        
+    // }
 
      const userExists = await User.findOne(
         { $or : [{ username}, {email}] }
@@ -132,7 +140,7 @@ const loginUser = asyncHandler(async( req, res) => {
 
 
      // the instance of user that we have, in that refresh token is still empty as entered refreshToken in generate method above not in this function
-    const loggedInUser = User.findById(userExists._id).select("-password -refreshToken")  // return the user without these selected fields
+    const loggedInUser = await User.findById(userExists._id).select("-password -refreshToken")  // return the user without these selected fields
 
 
     // Send Cookies
@@ -151,7 +159,9 @@ const loginUser = asyncHandler(async( req, res) => {
     .json(
         new ApiResponse(
             200, 
-            {user : loggedInUser, accessToken, refreshToken},
+            {
+                user : loggedInUser, accessToken, refreshToken
+            },
             "User logged in Successfully"
         )
     )
