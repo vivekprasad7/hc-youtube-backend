@@ -4,6 +4,7 @@ import { User } from "../models/user.models.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken"
+import mongoose from "mongoose";
 
 
 const generateAccessAndRefreshToken = async(userId) => {
@@ -24,7 +25,6 @@ const generateAccessAndRefreshToken = async(userId) => {
         throw new ApiError(500, `Something went wrong while generating Access and Refresh token, ${err}`)
     }
 }
-
 
 const registerUser = asyncHandler(async(req, res) => {
     // get user details from frontend
@@ -173,7 +173,9 @@ const logoutUser = asyncHandler(async(req, res) => {
     await User.findByIdAndUpdate(
         req.user._id, 
         {
-            refreshToken: undefined
+           $unset:{
+                refreshToken: 1  // this removes the field from document
+           } 
         },
         {
             new:true
@@ -194,13 +196,14 @@ const logoutUser = asyncHandler(async(req, res) => {
 })
 
 const refreshAccessToken = asyncHandler(async (req, res) => {
+    const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken
+    
+    if(!incomingRefreshToken){
+        throw new ApiError(401, "unauthorized request")
+    }
+
     try {
-        const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken
-    
-        if(!incomingRefreshToken){
-            throw new ApiError(401, "unauthorized request")
-        }
-    
+      
         const decodedToken = jwt.verify(incomingRefreshToken, process.env.REFRESH_TOKEN_SECRET)
     
         const user = await User.findById(decodedToken?._id)
@@ -222,7 +225,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     
         res
         .status(200)
-        .cookies("accessToken", accessToken, options )
+        .cookie("accessToken", accessToken, options )
         .cookies("refreshToken", newRefreshToken, options)
         .json(
             new ApiResponse(
